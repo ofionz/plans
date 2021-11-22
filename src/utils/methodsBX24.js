@@ -2,6 +2,30 @@ import Vue from 'vue';
 
 export const bx24methods = {
     methods: {
+        async fetchSettings (){
+            // eslint-disable-next-line no-unused-vars
+            return new Promise( function (resolve, reject) {
+                // eslint-disable-next-line no-undef
+                let bx24 = BX24;
+                 bx24.callMethod('entity.item.get', {
+                    ENTITY: 'SETTINGS',
+                    SORT: {DATE_ACTIVE_FROM: 'ASC', ID: 'ASC'},
+                    FILTER: {}
+                }, (reponse) => {
+                     let result = {};
+                     reponse.answer.result.forEach((set) => {
+                         result[set.NAME] = {}
+                         result[set.NAME].VALUE = JSON.parse(set.PROPERTY_VALUES.VALUE)
+                         result[set.NAME].ID = set.ID
+
+                     })
+                     resolve(result)
+                 })
+            })
+        },
+
+
+
         async callMethod(methodName, params) {
             return new Promise(function (resolve, reject) {
                 let result = [];
@@ -44,13 +68,9 @@ export const bx24methods = {
                     }
                 });
             })
-
         },
 
-
-
         async pageNavigationMethod(methodName, params) {
-
             return new Promise(function (resolve, reject) {
                 let result = [];
                 let pages;

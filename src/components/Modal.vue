@@ -6,7 +6,8 @@
     <v-card v-if="state.show">
       <v-card-title class="d-flex flex-column">
         <span class="text-h5 ">{{ state.title }}</span>
-        <v-subheader v-if="state.elem" class="d-flex flex-column">
+        <v-subheader v-if="state.elem" style="cursor: pointer; " class="d-flex flex-column "
+                     @click="openTask(state.elem.task.id)">
           <span>Задача: {{ state.elem.task.title }}</span>
         </v-subheader>
 
@@ -19,10 +20,9 @@
                 v-if="!state.edit"
                 item-text="NAME"
                 item-value="ID"
-                :items="groups"
+                :items="initGroups"
                 label="Проект"
                 prepend-icon="mdi-account-group"
-                :rules="[value => !!value || 'Заполните поле проект']"
 
             ></v-autocomplete>
 
@@ -60,84 +60,43 @@
               ></v-date-picker>
             </v-menu>
             <div class="d-flex justify-space-between align-center ">
-              <v-menu
-                  ref="startMenu"
-                  v-model="startMenu"
-                  :close-on-content-click="false"
-                  :nudge-right="40"
-                  :return-value.sync="startTime"
-                  transition="scale-transition"
-                  offset-y
+              <v-text-field
+                  prepend-icon="mdi-clock-time-four-outline"
+                  v-mask="timeMask"
+                  v-model="startTime"
+                  label="Начало"
+                  style="width: 33%; max-width: 33%"
+                  :rules="[
+                          value => !!value || 'Заполните поле время начала' ,
+                         (value) =>  value.length >= 5 || 'Проверьте правильность ввода времени',
+                         timeCheck
+                      ]"
+              ></v-text-field>
 
-                  max-width="290px"
-                  min-width="290px"
+
+              <v-text-field
+                  prepend-icon="mdi-clock-time-nine-outline"
+                  v-mask="timeMask"
+                  :rules="[value => !!value || 'Заполните поле время окончания' ,
+                          (value) =>  value.length >= 5 || 'Проверьте правильность ввода времени',
+                         timeCheck
+                         ]"
+                  style="width: 33%; max-width: 33%"
+                  v-model="stopTime"
+                  label="Конец"
+
               >
-                <template v-slot:activator="{ on, attrs }">
-                  <v-text-field
-                      v-model="startTime"
-                      label="Начало"
-                      prepend-icon="mdi-clock-time-four-outline"
-                      style="width: 33%; max-width: 33%"
-                      v-bind="attrs"
-                      v-on="on"
-                      :rules="[value => !!value || 'Заполните поле время начала']"
-                  >
+              </v-text-field>
 
-
-                  </v-text-field>
-                </template>
-                <v-time-picker
-                    v-if="startMenu"
-                    v-model="startTime"
-                    full-width
-                    format="24hr"
-                    :max="stopTime"
-                    scrollable
-                    @click:minute="$refs.startMenu.save(startTime)"
-                ></v-time-picker>
-              </v-menu>
-              <v-menu
-
-                  ref="stopMenu"
-                  v-model="stopMenu"
-                  :close-on-content-click="false"
-                  :nudge-right="40"
-                  :return-value.sync="stopTime"
-                  transition="scale-transition"
-                  offset-y
-                  max-width="290px"
-                  min-width="290px"
-              >
-                <template v-slot:activator="{ on, attrs }">
-                  <v-text-field
-
-                      :rules="[value => !!value || 'Заполните поле время окончания']"
-                      style="width: 33%; max-width: 33%"
-                      v-model="stopTime"
-                      label="Конец"
-                      prepend-icon="mdi-clock-time-nine-outline"
-                      readonly
-                      v-bind="attrs"
-                      v-on="on"
-                  ></v-text-field>
-                </template>
-                <v-time-picker
-                    v-if="stopMenu"
-                    v-model="stopTime"
-                    full-width
-                    format="24hr"
-                    :min="startTime"
-                    scrollable
-                    @click:minute="$refs.stopMenu.save(stopTime)"
-                ></v-time-picker>
-              </v-menu>
               <v-checkbox
+
+                  prepend-icon="mdi-sleep"
                   v-model="pause"
-                  label="Простой"
+                  label="ПРОСТОЙ"
               ></v-checkbox>
             </div>
             <v-text-field
-                v-model = "comment"
+                v-model="comment"
                 label="Комментарий"
                 prepend-icon="mdi-comment-outline"
             ></v-text-field>
@@ -183,6 +142,7 @@
 export default {
   name: "Modal",
   props: {
+    initGroups: {},
     state: {
       type: Object,
       required: true
@@ -197,7 +157,6 @@ export default {
       stopTime: '',
       startMenu: false,
       stopMenu: false,
-      groups: [],
       pause: false,
       comment: '',
     }
@@ -212,39 +171,64 @@ export default {
       this.stopTime = (stop.getHours() < 10 ? '0' + stop.getHours() : stop.getHours()) + ":" + (stop.getMinutes() < 10 ? '0' + stop.getMinutes() : stop.getMinutes());
       this.pause = this.state.elem.pause;
       this.comment = this.state.elem.COMMENT_TEXT;
-    } else {
-      this.groups = await this.fetchGroups();
     }
 
   },
   methods: {
-    async fetchGroups() {
-      let groups = [];
-      let filter = {
-        'CHECK_PERMISSIONS': 'N',
-        'PROJECT': 'Y',
-      }
-      // if (!this.isArchive) {
-      //   filter.CLOSED = 'N';
-      // }
+    timeCheck() {
+      let created = new Date();
+      created.setHours(Number.parseInt(this.startTime.split(':')[0]));
+      created.setMinutes(Number.parseInt(this.startTime.split(':')[1]));
 
-      await this.callMethod(
-          'sonet_group.get',
-          {
-            FILTER: filter,
-          }).then(function (res) {
-        groups = res;
-      });
-      return groups;
+      let stopped = new Date();
+      stopped.setHours(Number.parseInt(this.stopTime.split(':')[0]));
+      stopped.setMinutes(Number.parseInt(this.stopTime.split(':')[1]));
+
+      if (created > stopped) {
+        return 'Время начала больше времени окончания'
+      }
+      return true
+
+    },
+    timeMask(value) {
+
+      const hours = [
+        /[0-2]/,
+        value.charAt(0) === '2' ? /[0-3]/ : /[0-9]/,
+      ];
+      const minutes = [/[0-5]/, /[0-9]/];
+      return value.length > 2
+          ? [...hours, ':', ...minutes]
+          : hours;
+    },
+    openTask(id) {
+      window.open('https://ooovekas.bitrix24.ru/company/personal/user/' + window.USER.ID + '/tasks/task/view/' + id + '/', '_blank');
     },
     deleteItem() {
       let ctxt = this;
+
       this.callMethod(
-          'task.elapseditem.delete',
-          [this.state.elem.TASK_ID, this.state.elem.ID]).then(() => {
-        ctxt.$emit('needRefresh');
-        ctxt.state.show = false
-      });
+          'task.elapseditem.getlist',
+          [this.state.elem.TASK_ID, {}, {}]).then((res) => {
+        if (res.length === 1) {
+          ctxt.callMethod(
+              'tasks.task.delete',
+              {taskId: ctxt.state.elem.TASK_ID}).then(() => {
+            ctxt.$emit('needRefresh');
+            ctxt.state.show = false
+          });
+        } else {
+          ctxt.callMethod(
+              'task.elapseditem.delete',
+              [ctxt.state.elem.TASK_ID, ctxt.state.elem.ID]).then(() => {
+
+            ctxt.$emit('needRefresh');
+            ctxt.state.show = false
+          });
+        }
+
+
+      })
 
 
     },
@@ -257,6 +241,7 @@ export default {
           GROUP_ID: this.newElemData.project,
           RESPONSIBLE_ID: this.state.user.ID
         }
+
         let created = new Date(this.date);
         created.setHours(Number.parseInt(this.startTime.split(':')[0]));
         created.setMinutes(Number.parseInt(this.startTime.split(':')[1]));
@@ -264,7 +249,12 @@ export default {
         let stopped = new Date(this.date);
         stopped.setHours(Number.parseInt(this.stopTime.split(':')[0]));
         stopped.setMinutes(Number.parseInt(this.stopTime.split(':')[1]));
-        let logfields = {COMMENT_TEXT:this.comment, CREATED_DATE: created, SECONDS: ((stopped - created) / 1000)}
+        let logfields = {
+          COMMENT_TEXT: this.comment,
+          USER_ID: this.state.user.ID,
+          CREATED_DATE: created,
+          SECONDS: ((stopped - created) / 1000)
+        }
         if (this.pause) {
           logfields.COMMENT_TEXT += '||PAUSE';
         }
